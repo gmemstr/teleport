@@ -4427,6 +4427,11 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
 		appServer, err := app.New(process.ExitContext(), &app.Config{
@@ -4444,6 +4449,8 @@ func (process *TeleportProcess) initApps() {
 			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
 			OnHeartbeat:          process.onHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
+			LockWatcher:          lockWatcher,
+			Emitter:              asyncEmitter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
