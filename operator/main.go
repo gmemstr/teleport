@@ -146,6 +146,25 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "TeleportUser")
 		os.Exit(1)
 	}
+
+	if err = resourcescontrollers.NewGithubConnectorReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportGithubConnector")
+		os.Exit(1)
+	}
+
+	if err = resourcescontrollers.NewOIDCConnectorReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportOIDCConnector")
+		os.Exit(1)
+	}
+
+	if err = resourcescontrollers.NewSAMLConnectorReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportSAMLConnector")
+		os.Exit(1)
+	}
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
