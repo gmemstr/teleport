@@ -3,11 +3,13 @@ package resources
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 type TeleportKubernetesResource[T types.Resource] interface {
