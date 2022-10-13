@@ -370,14 +370,24 @@ $ tctl create -f reviewer.yaml
 The `requester` will now only be able to search for or request access to
 resources accessible by the `staging-access` role.
 
-### Allow reviewers to see the hostname of nodes they do not normally have access to
+### Allow reviewers to see the hostnames of SSH Nodes
 
-It is possible for a reviewer to view Resource Access Requests for SSH nodes to
+It is possible for a reviewer to view Resource Access Requests for SSH Nodes to
 which that reviewer does not have access.
 In this case, the reviewer will not be able to view the hostname of the requested node
 and they will only see the node's UUID.
-To give the reviewer permission to view the node hostname, use the
-`allow.review_requests.preview_as_roles` field in the reviewer's role.
+
+To give the reviewer permission to view the Node hostname, use the
+`allow.review_requests.preview_as_roles` field in the reviewer's role, e.g.:
+
+```
+kind: role
+spec:
+  allow:
+    review_requests:
+      preview_as_roles: [access]
+```
+
 This can often be set to the same value as `allow.review_requests.roles`.
 When any of the `preview_as_roles` set for the reviewer would allow access to
 the requested node, the hostname will be displayed in the Review Request page of
