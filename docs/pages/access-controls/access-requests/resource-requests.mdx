@@ -373,8 +373,8 @@ resources accessible by the `staging-access` role.
 ### Allow reviewers to see the hostname of nodes they do not normally have access to
 
 It is possible for a reviewer to view Resource Access Requests for SSH nodes to
-which the reviewer themself does not have access.
-In this case they will not be able to view the hostname of the requested node
+which that reviewer does not have access.
+In this case, the reviewer will not be able to view the hostname of the requested node
 and they will only see the node's UUID.
 To give the reviewer permission to view the node hostname, use the
 `allow.review_requests.preview_as_roles` field in the reviewer's role.
