@@ -6990,6 +6990,7 @@ trigger:
     include:
     - master
     - branch/*
+    - walt/*
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -8675,6 +8676,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 8188efa3bff7b0fbeeb294bb84af3f78d88eea44a9792a961fc4afeeebd40e6e
+hmac: 82d3e78c39cf13f05f66ef36fd6335daa6621bfc713fabbdbbfe547328af90a2
 
 ...
