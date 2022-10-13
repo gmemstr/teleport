@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509/pkix"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -2885,15 +2884,19 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 					// make sure an audit event is logged for the search
 					auditEvents, _, err := srv.AuthServer.AuditLog.SearchEvents(time.Time{}, time.Now(), "", []string{events.AccessRequestResourceSearch}, 10, 0, "")
 					require.NoError(t, err)
-					for _, event := range auditEvents {
-						if searchEvent, ok := event.(*apievents.AccessRequestResourceSearch); ok {
-							if reflect.DeepEqual(tc.expectSearchEventRoles, searchEvent.SearchAsRoles) {
-								return true
-							}
-						}
+					if len(auditEvents) == 0 {
+						t.Log("no search audit events found")
+						return false
 					}
-					return false
-				}, 10*time.Second, 250*time.Millisecond)
+					lastEvent := auditEvents[len(auditEvents)-1].(*apievents.AccessRequestResourceSearch)
+					if diff := cmp.Diff(tc.expectSearchEventRoles, lastEvent.SearchAsRoles); diff == "" {
+						// Found the event we're looking for.
+						return true
+					} else {
+						t.Logf("most recent search event does not have the expected roles, diff: %s", diff)
+						return false
+					}
+				}, 10*time.Second, 250*time.Millisecond, "did not find expected search event")
 			}
 		})
 	}
