@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/touchid"
 	"github.com/gravitational/teleport/lib/auth/webauthncli"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/client/terminal"
@@ -3452,14 +3453,13 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			return nil, trace.BadParameter("passwordless disallowed by cluster settings")
 		}
 		return tc.pwdlessLogin, nil
+	case authType == constants.Local && tc.canDefaultToPasswordless(pr):
+		log.Debug("Trying passwordless login because credentials were found")
+		// if passwordless is enabled and there are passwordless credentials
+		// registered, we can try to go with passwordless login even though
+		// auth=local was selected.
+		return tc.pwdlessLogin, nil
 	case authType == constants.Local:
-		if tc.canDefaultToPasswordless(pr) {
-			log.Debug("Trying passwordless login because credentials were found")
-			// if passwordless is enabled and there are passwordless credentials
-			// registered, we can try to go with passwordless login even though
-			// auth=local was selected.
-			return tc.pwdlessLogin, nil
-		}
 		return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 			return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
 		}, nil
@@ -3481,7 +3481,7 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 }
 
 // hasCredentials provides indirection for tests.
-var hasCredentials = wancli.HasCredentials
+var hasCredentials = touchid.HasCredentials
 
 // canDefaultToPasswordless checks without user interaction
 // if there is any registered passwordless login.
