@@ -17,7 +17,12 @@ limitations under the License.
 package sqlserver
 
 import (
+	"context"
+	"fmt"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver/kinit"
+	"github.com/jcmturner/gokrb5/v8/credentials"
+	"strings"
 
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
@@ -32,40 +37,129 @@ import (
 // TODO(r0mant): Unit-test this. In-memory Kerberos server?
 func (c *connector) getAuth(sessionCtx *common.Session) (*krbAuth, error) {
 	// Load keytab.
-	keytab, err := keytab.Load(sessionCtx.Database.GetAD().KeytabFile)
+	kt, err := keytab.Load(sessionCtx.Database.GetAD().KeytabFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Load krb5.conf.
-	config, err := config.Load(sessionCtx.Database.GetAD().Krb5File)
+	conf, err := config.Load(sessionCtx.Database.GetAD().Krb5File)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create Kerberos client.
-	client := client.NewWithKeytab(
+	kbClient := client.NewWithKeytab(
 		sessionCtx.DatabaseUser,
 		sessionCtx.Database.GetAD().Domain,
-		keytab,
-		config,
+		kt,
+		conf,
 		// Active Directory does not commonly support FAST negotiation.
 		client.DisablePAFXFAST(true))
-
 	// Login.
-	err = client.Login()
+	err = kbClient.Login()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Obtain service ticket for the database's Service Principal Name.
-	ticket, encryptionKey, err := client.GetServiceTicket(sessionCtx.Database.GetAD().SPN)
+	ticket, encryptionKey, err := kbClient.GetServiceTicket(sessionCtx.Database.GetAD().SPN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create init negotiation token.
-	initToken, err := spnego.NewNegTokenInitKRB5(client, ticket, encryptionKey)
+	initToken, err := spnego.NewNegTokenInitKRB5(kbClient, ticket, encryptionKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Marshal init negotiation token.
+	initTokenBytes, err := initToken.Marshal()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &krbAuth{
+		initToken: initTokenBytes,
+	}, nil
+}
+
+// the following will not work unless you have a properly configured domain controller with active directory, and have exported
+// the CA into Certificate Manager, published it to the NTAUTH Store, configured a group policy to use it, enabled smart card access,
+// and have a service account matching the Username from the provided Identity. Even then, I was only able to get this to work
+// using a KDC certificate intermediary. Looking at the Remote Desktop instructions, it looks like they do this differently by
+// provisioning certificates themselves by using a Teleport Service Account to do so.
+
+// Handy commands for working with certificates in powershell:
+// - certutil -dspublish -f <certificate> RootCA  // publish to trusted root CAs
+// - certutil -dspublish -f <certificate> NTAuthCA  // publish specifically to the authorization store
+// - certutil -pulse  // refresh the certificate store manually, so you don't have to wait for propagation
+// - certutil -dcinfo  // view certificates in use on this domain controller
+// - gpupdate.exe /force  // update group policy for changes to take effect
+// - New-GPO -Name <name> | New-GPLink -Target $((Get-ADDomain).DistinguishedName)  // Create a new group policy object and link it to the active directory domain
+func (c *connector) getPKAuth(ctx context.Context, sessionCtx *common.Session) (*krbAuth, error) {
+
+	// super hacky, I just placed certs next to the teleport binary
+	// some of this information we will want in config, such as the domain controller/admin server address and the realm
+	k := kinit.New(
+		"cacert.pem",
+		"cakey.pem",
+		"usercert.pem",
+		"userkey.pem",
+		sessionCtx.Identity.Username,
+		"kinit.cache",
+		strings.ToUpper(sessionCtx.Database.GetAD().Domain),
+		sessionCtx.Database.GetAD().Domain,
+		sessionCtx.Database.GetAD().Domain,
+	)
+
+	// these extensions are required for kerberos x509 auth; https://web.mit.edu/kerberos/krb5-1.13/doc/admin/pkinit.html
+	err := k.GenerateKDCExtensions("kdc.extensions")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cn := fmt.Sprintf("%s@%s", sessionCtx.Identity.Username, sessionCtx.Database.GetAD().Domain)
+
+	// generate ephemeral client cert and keypair
+	err = k.GenerateClientCertKey(ctx, "kdc.extensions", "US", "MA", "Boston", "Teleport", "Eng", cn, cn, ".")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// create the kinit credentials cache using the previously prepared cert/key pair
+	err = k.CreateOrAppendCredentialsCache(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load CCache.
+	cc, err := credentials.LoadCCache(k.CacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load krb5.conf.
+	conf, err := config.Load(sessionCtx.Database.GetAD().Krb5File)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create Kerberos client from ccache.
+	kbClient, err := client.NewFromCCache(cc, conf, client.DisablePAFXFAST(true))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Obtain service ticket for the database's Service Principal Name.
+	ticket, encryptionKey, err := kbClient.GetServiceTicket(sessionCtx.Database.GetAD().SPN)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create init negotiation token.
+	initToken, err := spnego.NewNegTokenInitKRB5(kbClient, ticket, encryptionKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

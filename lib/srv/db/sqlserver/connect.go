@@ -64,7 +64,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		TypeFlags:    loginPacket.TypeFlags(),
 	}
 
-	auth, err := c.getAuth(sessionCtx)
+	auth, err := c.getPKAuth(ctx, sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
