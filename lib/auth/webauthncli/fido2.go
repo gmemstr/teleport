@@ -695,7 +695,7 @@ func withInteractiveError(filter deviceFilterFunc, cb pinAwareCallbackFunc) pinA
 		}
 
 		// U2F devices tend to cause problems with the waitForTouch strategy below,
-		// so we filter then silently, as we used to do with all devices in previous
+		// so we filter them silently, as we used to do with all devices in previous
 		// versions.
 		if info.u2f {
 			log.Warnf("FIDO2: Device %v: U2F device filtered due to lack of capabilities", info.path)
