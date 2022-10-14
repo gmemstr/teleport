@@ -364,9 +364,9 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	name, ok := s.auditCache.GetName(sid, 2)
 	require.True(t, ok)
 	require.Equal(t, directoryName("test-dir"), name)
-	_, ok = s.auditCache.GetReadRequestInfo(sid, 999)
+	_, ok = s.auditCache.TakeReadRequestInfo(sid, 999)
 	require.False(t, ok)
-	_, ok = s.auditCache.GetWriteRequestInfo(sid, 999)
+	_, ok = s.auditCache.TakeWriteRequestInfo(sid, 999)
 	require.False(t, ok)
 
 	// Simulate a session end event
@@ -388,8 +388,8 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	require.False(t, ok)
 	_, ok = s.auditCache.GetName(sid, 2)
 	require.False(t, ok)
-	_, ok = s.auditCache.GetReadRequestInfo(sid, 999)
+	_, ok = s.auditCache.TakeReadRequestInfo(sid, 999)
 	require.False(t, ok)
-	_, ok = s.auditCache.GetWriteRequestInfo(sid, 999)
+	_, ok = s.auditCache.TakeWriteRequestInfo(sid, 999)
 	require.False(t, ok)
 }
